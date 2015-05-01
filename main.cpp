@@ -115,6 +115,7 @@ int main(int argc, char** argv) {
     namedWindow(warped_window, CV_WINDOW_NORMAL);
     createTrackbar("Ransac threshold: ",
             warped_window, &ransac_thresh, 300, demoRansac);
+    demoRansac(0, NULL);
     waitKey(0);
     return 0;
 }
@@ -267,14 +268,15 @@ void demoRansac(int, void*) {
             Point left = leftImagePoints[i];
             Point right = rightImagePoints[i];
             right.x = right.x;
-            double dist = norm(Mat(left), Mat(right), NORM_L2);
+            //squared distance of a point = NORM_L2^2
+            double dist = std::pow(norm(Mat(left), Mat(right), NORM_L2), 2);
             residualAggregator += dist;
             leftInliers.push_back(left);
             rightInliers.push_back(right);
         }
     }
     cout << "Number of Inliers: " << numberOfInliers << endl;
-    cout << "Average residual (NORM_L2): " <<
+    cout << "Average residual (NORM_L2)^2: " <<
             residualAggregator / numberOfInliers << endl;
 
     //concatenate two images together
@@ -297,33 +299,57 @@ void demoRansac(int, void*) {
         circle(plottedImg, pointOfLeftImg, 5, Scalar(0), 2, 8, 0);
         circle(plottedImg, pointOfRightImg, 5, Scalar(0), 2, 8, 0);
     }
-    namedWindow("Inlier matches");
+    namedWindow("Inlier matches", CV_WINDOW_NORMAL);
     imshow("Inlier matches", plottedImg);
 
     Mat warpPerspectiveResult;
     warpPerspective(img1, warpPerspectiveResult, H,
             Size(src_1.cols + src_2.cols, src_2.rows));
 
-    //***** I tried getting the affine transform, but the results does not make
-    //sense.//
     //get the indices of the best three matches from the left
-    //    srcTri[0] = rightInliers[rightInliers.size()-1];
-    //    srcTri[1] = rightInliers[rightInliers.size()-2];
-    //    srcTri[2] = rightInliers[rightInliers.size()-3];
-    //
-    //    //get the indices of the best three matches from the right
-    //    dstTri[0] = leftInliers[leftInliers.size()-1];
-    //    dstTri[1] = leftInliers[leftInliers.size()-2];
-    //    dstTri[2] = leftInliers[leftInliers.size()-3];
-    //
-    //    Mat trans_mat = getAffineTransform(srcTri, dstTri);
-    //    Mat affineResult;
-    //    warpAffine(result, affineResult, trans_mat, result.size());
+    srcTri[0] = rightInliers[rightInliers.size() - 1];
+    srcTri[1] = rightInliers[rightInliers.size() - 2];
+    srcTri[2] = rightInliers[rightInliers.size() - 3];
 
-    //****Just move the image to the right instead, using affine translation
-    //    Mat moveRightMat = (Mat_<double>(2, 3) << 1, 0, img1.cols, 0, 1, 0);
-    //    Mat movedToRightImg;
-    //    warpAffine(result, movedToRightImg, moveRightMat, result.size());
+    //get the indices of the best three matches from the right
+    dstTri[0] = leftInliers[leftInliers.size() - 1];
+    dstTri[1] = leftInliers[leftInliers.size() - 2];
+    dstTri[2] = leftInliers[leftInliers.size() - 3];
+
+    Mat trans_mat = getAffineTransform(srcTri, dstTri);
+    Mat affineResult;
+    warpAffine(warpPerspectiveResult, affineResult, trans_mat, warpPerspectiveResult.size());
+    namedWindow("Affine", WINDOW_NORMAL);
+    imshow("Affine", affineResult);
+
+    //**** I tried using the affine 3d method but it doesn't make sense
+    //using the affine3d method
+//    Mat leftHomogenous;
+//    convertPointsToHomogeneous(Mat(leftImagePoints), leftHomogenous);
+//    Mat rightHomogenous;
+//    convertPointsToHomogeneous(Mat(rightImagePoints), rightHomogenous);
+//
+//    Mat affine3d_transmat, affine3d_inliers;
+//    estimateAffine3D(leftHomogenous, rightHomogenous, affine3d_transmat,
+//            affine3d_inliers, ransac_thresh);
+//    //adding 3rd & 4th column, transfer to 3rd column. Drop 4th column, drop 3rd
+//    affine3d_transmat.at<double>(0, 2) = affine3d_transmat.at<double>(0, 2) +
+//            affine3d_transmat.at<double>(0, 3);
+//    affine3d_transmat.at<double>(1, 2) = affine3d_transmat.at<double>(1, 2) +
+//            affine3d_transmat.at<double>(1, 3);
+//    affine3d_transmat.at<double>(2, 2) = affine3d_transmat.at<double>(2, 2) +
+//            affine3d_transmat.at<double>(2, 3);
+//
+//    //drop last column and 3rd row
+//    Mat affine_3x3_transmat = Mat(affine3d_transmat, Rect(0, 0, 3, 3));
+//    cout << affine_3x3_transmat << endl;
+//    //use perspective transform
+//    Mat affine3dResult;
+//    warpPerspective(src_1, affine3dResult, affine_3x3_transmat,
+//            Size(src_1.cols + src_2.cols, src_2.rows));
+//    namedWindow("Affine3d", WINDOW_NORMAL);
+//    imshow("Affine3d", affine3dResult);
+//    cout << trans_mat << endl;
 
     //warped image result
     Mat warpedIm = warpPerspectiveResult.clone();
@@ -339,11 +365,11 @@ void demoRansac(int, void*) {
     img2.copyTo(leftHalf);
     //*****I tried to use this function to calculate the average, but it was slow!
     //    compositeResult(leftClone, warpPerspectiveResult);
-//    Mat intersection = leftClone & warpPerspectiveResult;
+    //    Mat intersection = leftClone & warpPerspectiveResult;
     Mat composite;
     addWeighted(leftClone, 0.5, warpPerspectiveResult, 0.5, 0, composite);
 
-    namedWindow(composite_window);
+    namedWindow(composite_window, CV_WINDOW_NORMAL);
     imshow(composite_window, composite);
 }
 
