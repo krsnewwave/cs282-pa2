@@ -1,3 +1,8 @@
+/**
+ * @source http://ramsrigoutham.com/2012/11/22/panorama-image-stitching-in-opencv/
+ * @summary Panorama stitching using SURF features
+ */
+
 #include <stdio.h>
 #include <iostream>
  
