@@ -1,0 +1,73 @@
+
+#include <pcl/common/common_headers.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl-1.7/pcl/impl/point_types.hpp>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <boost/thread/thread.hpp>
+#include <GL/gl.h>
+
+void on_opengl(void* param);
+
+
+void on_opengl(void* param) {
+    Mat givenPoints4D = *((Mat*) param);
+    glLoadIdentity();
+    glPointSize(3);
+    glBegin(GL_POINTS);
+    for (int i = 0; i < givenPoints4D.cols; i++) {
+        for (int j = 0; j < givenPoints4D.rows; j++) {
+            glColor3ub(255, 0, 0);
+            glVertex3fv(&givenPoints4D.at<float>(i, j));
+        }
+    }
+    glEnd();
+}
+
+//void createPointCloud(){
+//     std::cout << "Creating Point Cloud..." << std::endl;
+//    pcl::PointCloud<pcl::PointXYZI>::Ptr pclPoints(
+//            new pcl::PointCloud<pcl::PointXYZI>);
+//
+//    //display in PCL, iterate through each point, then push into PCL data object
+//    for (int i = 0; i < givenPoints4D.cols; i++) {
+//        //get grayscale values of the original point, based on first image
+//        Point2f point = selPointsLeft.at(i);
+//        float gray = src1.at<float>(point.x, point.y);
+//        pcl::PointXYZI pclPoint;
+//
+//        for (int j = 0; j < givenPoints4D.rows; j++) {
+//            Point3d point3d = givenPoints4D.at<Point3d>(i, j);
+//            pclPoint.x = point3d.x;
+//            pclPoint.y = point3d.y;
+//            pclPoint.z = point3d.z;
+////            pclPoint.intensity = gray;
+//            pclPoints->points.push_back(pclPoint);
+//        }
+//    }
+//    pclPoints->width = (int) pclPoints->points.size();
+//    pclPoints->height = 1;
+//
+//    //Create visualizer
+//    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer;
+//    viewer = createVisualizer(pclPoints);
+//
+//    while (!viewer->wasStopped()) {
+//        viewer->spinOnce(100);
+//        boost::this_thread::sleep(boost::posix_time::microseconds(100000));
+//    }
+//}
+
+/**
+ * Taken from http://blog.martinperis.com/2012/01/3d-reconstruction-with-opencv-and-point.html
+ * @param cloud
+ * @return 
+ */
+//boost::shared_ptr<pcl::visualization::PCLVisualizer> createVisualizer(pcl::PointCloud<pcl::PointXYZI>::ConstPtr cloud) {
+//    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
+//    viewer->setBackgroundColor(0, 0, 0);
+//    pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity_distribution(cloud, "intensity"); 
+//    viewer->addPointCloud<pcl::PointXYZI> (cloud, intensity_distribution, "sample cloud");
+//    viewer->addCoordinateSystem(1.0);
+//    viewer->initCameraParameters();
+//    return (viewer);
+//}

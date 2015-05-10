@@ -41,7 +41,7 @@ PairKeyPoints filterPoints(ScoreMap scoreMap, Coordinates coords1,
 Mat euclideanMatches(Patches patches_1, Patches patches_2);
 Coordinates extractFeaturePoints(Mat img, int threshold);
 PairKeyPoints getKeyPoints(Coordinates leftCorners,
-        Coordinates rightCorners, Mat src1, Mat src2, double threshold = 0.5,
+        Coordinates rightCorners, Mat src1, Mat src2, double threshold = 50,
         int width = 20);
 vector<DMatch> extractMatches(Patches leftDesc, Patches rightDesc);
 BFScoreMap filterScores(BFScoreMap scoreMap, double topX);
