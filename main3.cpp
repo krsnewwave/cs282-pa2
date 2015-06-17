@@ -62,13 +62,27 @@ void writeProjectiveTriangulatedMatToFile(string file_name, Mat m);
 double homogenous2DToProjected3DDistance(KeyPoints points2d, Mat points3d);
 double computeResidual(KeyPoints kp, Epilines epi, int sizeOfImage);
 Mat triangulatedToEuclidean(Mat t);
+void plotPa2Matches(int, void*);
+
+//define global parameters for live modification
+int harrisThreshold = 101;
+int topX = 80;
+int patchSize = 20;
+int ransacDistanceThreshold = 2;
+int ransacConfidence = 99;
+string myMatchesWindow = "Harris threshold";
+string givenMatchesWindow = "Given Matches";
+string epilinesWindow = "Epilines";
+
+Mat img1, img2;
+PairEpilines pa2Epilines;
+KeyPoints leftInliers, rightInliers;
 
 /** @function main */
 int main(int argc, char** argv) {
     /// Load source image and convert it to gray
     Mat src1 = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
     Mat src2 = imread(argv[2], CV_LOAD_IMAGE_GRAYSCALE);
-    Mat img1, img2;
     equalizeHist(src1, img1);
     equalizeHist(src2, img2);
 
@@ -94,6 +108,8 @@ int main(int argc, char** argv) {
 
     //plotting the matches for checking
     plotMatches(selPointsLeft, selPointsRight, img1, img2);
+    waitKey(0);
+    destroyWindow(givenMatchesWindow);
 
     //get the fundamental matrix
     Mat mask;
@@ -104,6 +120,9 @@ int main(int argc, char** argv) {
     PairEpilines pairEpilines = plotEpilines(pair<KeyPoints, KeyPoints>(
             selPointsLeft, selPointsRight), img1.clone(), img2.clone(),
             givenFundamentalMatrix);
+    waitKey(0);
+    destroyWindow(epilinesWindow);
+
     Epilines leftEpilines = pairEpilines.first;
     Epilines rightEpilines = pairEpilines.second;
 
@@ -117,46 +136,16 @@ int main(int argc, char** argv) {
     //ming Assignment 2. Because the set of putative matches 
     //includes outliers, you will need to use RANSAC.
     //For this part, use only the normalized fitting approach.
-    Coordinates coords1 = extractFeaturePoints(img1, 120);
-    Coordinates coords2 = extractFeaturePoints(img1, 120);
-
-    //get feature descriptors
-    Patches patches1 = extractPatches(coords1, img1);
-    Patches patches2 = extractPatches(coords2, img2);
-
-    //get feature matches
-    PairKeyPoints keypoints = getKeyPoints(coords1, coords2, img1,
-            img2, 80, 20);
-    //get another fundamental matrix
-    Mat pa2OutputMask;
-    Mat pa2LeftMat = Mat(keypoints.first);
-    Mat pa2RightMat = Mat(keypoints.second);
-    Mat pa2FundamentalMatrix = findFundamentalMat(
-            pa2LeftMat, pa2RightMat, pa2OutputMask, FM_RANSAC);
-
-    //get a new set of key points based on the RANSAC result
-    KeyPoints leftInliers, rightInliers;
-    for (int i = 0; i < pa2OutputMask.rows; i++) {
-        bool isInlier = (unsigned int) pa2OutputMask.at<uchar>(i) ? true : false;
-        if (isInlier) {
-            Point2f left = keypoints.first[i];
-            Point2f right = keypoints.second[i];
-            leftInliers.push_back(left);
-            rightInliers.push_back(right);
-        }
-    }
-
-    //plotting the produced matches for checking
-    plotMatches(leftInliers, rightInliers, img1, img2);
-
-    //get and plot matches from PA2
-    PairEpilines pa2Epilines = plotEpilines(pair<KeyPoints, KeyPoints>(
-            leftInliers, rightInliers), img1.clone(), img2.clone(),
-            pa2FundamentalMatrix);
-
-    //get PA2's residuals
-    double pa2Residual = computeResidual(leftInliers, pa2Epilines.second, img2.cols);
-    cout << "PA2 right keypoints to right epilines residual: " << pa2Residual << endl;
+    namedWindow(myMatchesWindow, CV_WINDOW_AUTOSIZE);
+    createTrackbar("Harris threshold", myMatchesWindow, &harrisThreshold,
+            255, plotPa2Matches);
+    createTrackbar("Patch size", myMatchesWindow, &patchSize,
+            100, plotPa2Matches);
+    createTrackbar("RANSAC distance", myMatchesWindow, &ransacDistanceThreshold,
+            100, plotPa2Matches);
+    plotPa2Matches(0, 0);
+    waitKey(0);
+    destroyAllWindows();
 
     //load the camera matrices
     ifstream camera_file_1(argv[4]);
@@ -237,6 +226,114 @@ Mat triangulatedToEuclidean(Mat t) {
     Mat euclidean;
     convertPointsFromHomogeneous(points3dTransposed, euclidean);
     return euclidean;
+}
+
+/**
+ * Plot harris corners
+ * @param 
+ * @param 
+ */
+void plotPa2Matches(int, void*) {
+    Mat corners1 = Mat::zeros(img1.size(), CV_32FC1);
+    Mat corners2 = Mat::zeros(img2.size(), CV_32FC1);
+
+    Mat plotImg1 = img1.clone();
+    Mat plotImg2 = img2.clone();
+
+    /// Detector parameters
+    int blockSize = 2;
+    int apertureSize = 3;
+    double k = 0.04;
+
+    /// Detecting corners
+    cornerHarris(plotImg1, corners1, blockSize, apertureSize, k, BORDER_DEFAULT);
+    cornerHarris(plotImg2, corners2, blockSize, apertureSize, k, BORDER_DEFAULT);
+
+    /// Normalizing
+    Mat plotImgNorm1, plotImgNorm2, plotImgNormScale1, plotImgNormScale2;
+    normalize(corners1, plotImgNorm1, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
+    convertScaleAbs(plotImgNorm1, plotImgNormScale1);
+    normalize(corners2, plotImgNorm2, 0, 255, NORM_MINMAX, CV_32FC1, Mat());
+    convertScaleAbs(plotImgNorm2, plotImgNormScale2);
+
+    /// Extracting patches around the corners
+    for (int j = 0; j < plotImgNorm1.rows; j++) {
+        for (int i = 0; i < plotImgNorm1.cols; i++) {
+            int score = (int) plotImgNorm1.at<float>(j, i);
+            if (score > harrisThreshold) {
+                circle(plotImgNormScale1, Point(i, j), 5, Scalar(0), 2, 8, 0);
+            }
+        }
+    }
+    /// Extracting patches around the corners
+    for (int j = 0; j < plotImgNorm2.rows; j++) {
+        for (int i = 0; i < plotImgNorm2.cols; i++) {
+            if ((int) plotImgNorm2.at<float>(j, i) > harrisThreshold) {
+                circle(plotImgNormScale2, Point(i, j), 5, Scalar(0), 2, 8, 0);
+            }
+        }
+    }
+
+    //concatenate two images together
+    Size img1Sz = plotImgNormScale1.size();
+    Size img2Sz = plotImgNormScale2.size();
+    int height = max(img1Sz.height, img2Sz.height);
+    Mat plottedImg(height, img1Sz.width + img2Sz.width, plotImg1.type());
+    Mat left(plottedImg, Rect(0, 0, img1Sz.width, img1Sz.height));
+    plotImgNormScale1.copyTo(left);
+    Mat right(plottedImg, Rect(img1Sz.width, 0, img2Sz.width, img2Sz.height));
+    plotImgNormScale2.copyTo(right);
+
+    /// Showing the result
+    imshow(myMatchesWindow, plottedImg);
+
+    /* --- Extraction of 
+     *  feature points and 
+     * feature matching ---*/
+
+    Coordinates coords1 = extractFeaturePoints(plotImg1, harrisThreshold);
+    Coordinates coords2 = extractFeaturePoints(plotImg1, harrisThreshold);
+
+    //get feature descriptors
+    Patches patches1 = extractPatches(coords1, plotImg1);
+    Patches patches2 = extractPatches(coords2, plotImg2);
+
+    //get feature matches
+    PairKeyPoints keypoints = getKeyPoints(coords1, coords2, plotImg1,
+            plotImg2, topX, patchSize);
+    //get another fundamental matrix
+    Mat pa2OutputMask;
+    Mat pa2LeftMat = Mat(keypoints.first);
+    Mat pa2RightMat = Mat(keypoints.second);
+    Mat pa2FundamentalMatrix = findFundamentalMat(
+            pa2LeftMat, pa2RightMat, pa2OutputMask, FM_RANSAC, (double) ransacDistanceThreshold);
+
+    leftInliers.clear();
+    rightInliers.clear();
+    //get a new set of key points based on the RANSAC result
+    for (int i = 0; i < pa2OutputMask.rows; i++) {
+        bool isInlier = (unsigned int) pa2OutputMask.at<uchar>(i) ? true : false;
+        if (isInlier) {
+            Point2f left = keypoints.first[i];
+            Point2f right = keypoints.second[i];
+            leftInliers.push_back(left);
+            rightInliers.push_back(right);
+        }
+    }
+
+    //plotting the produced matches for checking
+    plotMatches(leftInliers, rightInliers, plotImg1, plotImg2);
+
+    //get and plot matches from PA2
+    pa2Epilines = plotEpilines(pair<KeyPoints, KeyPoints>(
+            leftInliers, rightInliers), img1.clone(), img2.clone(),
+            pa2FundamentalMatrix);
+
+    //get PA2's residuals
+    double pa2Residual = computeResidual(leftInliers, pa2Epilines.second, img2.cols);
+    printf("Parameters: Harris: %d, Patch Size: %d, RANSAC distance: %d\n",
+            harrisThreshold, patchSize, ransacDistanceThreshold);
+    cout << "PA2 right keypoints to right epilines residual: " << pa2Residual << endl;
 }
 
 /**
@@ -329,9 +426,9 @@ PairEpilines plotEpilines(PairKeyPoints pairKeyPoints, Mat img1, Mat img2,
     img1.copyTo(left);
     Mat right(plottedImg, Rect(img1Sz.width, 0, img2Sz.width, img2Sz.height));
     img2.copyTo(right);
-    namedWindow("Epilines");
-    imshow("Epilines", plottedImg);
-    waitKey(0);
+
+    namedWindow(epilinesWindow);
+    imshow(epilinesWindow, plottedImg);
 
     return pair<vector<Vec3f>, vector < Vec3f >> (leftEpilines, rightEpilines);
 }
@@ -366,8 +463,8 @@ void plotMatches(KeyPoints leftMatches, KeyPoints rightMatches, Mat img1, Mat im
         circle(plottedImg, pointOfLeftImg, 5, Scalar(0), 2, 8, 0);
         circle(plottedImg, pointOfRightImg, 5, Scalar(0), 2, 8, 0);
     }
-    namedWindow("Matches", CV_WINDOW_AUTOSIZE);
-    imshow("Matches", plottedImg);
-    waitKey(0);
+
+    namedWindow(givenMatchesWindow, CV_WINDOW_AUTOSIZE);
+    imshow(givenMatchesWindow, plottedImg);
 }
 

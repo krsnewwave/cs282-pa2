@@ -66,7 +66,7 @@ BFScoreMap sortedMap;
 /// Function headers
 void demoKeypoints(int, void*);
 void demoRansac(int, void*);
-void plotMatches(int, void*);
+void plotPa2Matches(int, void*);
 void showCorners(Mat src, Coordinates coordinates, char* window_name);
 PairKeyPoints myAlgorithm();
 PairKeyPoints bestFirstMatchAlgorithm();
@@ -239,7 +239,7 @@ PairKeyPoints myAlgorithm() {
 
     //plot best matches
     namedWindow(matches_window, CV_WINDOW_NORMAL);
-    createTrackbar("Best %: ", matches_window, &topX, 100, plotMatches);
+    createTrackbar("Best %: ", matches_window, &topX, 100, plotPa2Matches);
     waitKey(0);
 
     //get key points
@@ -265,9 +265,10 @@ void demoRansac(int, void*) {
         bool isInlier = (unsigned int) mask.at<uchar>(i) ? true : false;
         if (isInlier) {
             numberOfInliers++;
-            Point left = leftImagePoints[i];
-            Point right = rightImagePoints[i];
-            right.x = right.x;
+            Point left = Point(leftImagePoints[i].x, leftImagePoints[i].y);
+//            cout << "Left: " << left.x << "x" << left.y << endl;
+            Point right = Point(rightImagePoints[i].x, rightImagePoints[i].y);
+//            cout << "Right: " << right.x << "x" << right.y << endl;
             //squared distance of a point = NORM_L2^2
             double dist = std::pow(norm(Mat(left), Mat(right), NORM_L2), 2);
             residualAggregator += dist;
@@ -324,32 +325,32 @@ void demoRansac(int, void*) {
 
     //**** I tried using the affine 3d method but it doesn't make sense
     //using the affine3d method
-//    Mat leftHomogenous;
-//    convertPointsToHomogeneous(Mat(leftImagePoints), leftHomogenous);
-//    Mat rightHomogenous;
-//    convertPointsToHomogeneous(Mat(rightImagePoints), rightHomogenous);
-//
-//    Mat affine3d_transmat, affine3d_inliers;
-//    estimateAffine3D(leftHomogenous, rightHomogenous, affine3d_transmat,
-//            affine3d_inliers, ransac_thresh);
-//    //adding 3rd & 4th column, transfer to 3rd column. Drop 4th column, drop 3rd
-//    affine3d_transmat.at<double>(0, 2) = affine3d_transmat.at<double>(0, 2) +
-//            affine3d_transmat.at<double>(0, 3);
-//    affine3d_transmat.at<double>(1, 2) = affine3d_transmat.at<double>(1, 2) +
-//            affine3d_transmat.at<double>(1, 3);
-//    affine3d_transmat.at<double>(2, 2) = affine3d_transmat.at<double>(2, 2) +
-//            affine3d_transmat.at<double>(2, 3);
-//
-//    //drop last column and 3rd row
-//    Mat affine_3x3_transmat = Mat(affine3d_transmat, Rect(0, 0, 3, 3));
-//    cout << affine_3x3_transmat << endl;
-//    //use perspective transform
-//    Mat affine3dResult;
-//    warpPerspective(src_1, affine3dResult, affine_3x3_transmat,
-//            Size(src_1.cols + src_2.cols, src_2.rows));
-//    namedWindow("Affine3d", WINDOW_NORMAL);
-//    imshow("Affine3d", affine3dResult);
-//    cout << trans_mat << endl;
+    //    Mat leftHomogenous;
+    //    convertPointsToHomogeneous(Mat(leftImagePoints), leftHomogenous);
+    //    Mat rightHomogenous;
+    //    convertPointsToHomogeneous(Mat(rightImagePoints), rightHomogenous);
+    //
+    //    Mat affine3d_transmat, affine3d_inliers;
+    //    estimateAffine3D(leftHomogenous, rightHomogenous, affine3d_transmat,
+    //            affine3d_inliers, ransac_thresh);
+    //    //adding 3rd & 4th column, transfer to 3rd column. Drop 4th column, drop 3rd
+    //    affine3d_transmat.at<double>(0, 2) = affine3d_transmat.at<double>(0, 2) +
+    //            affine3d_transmat.at<double>(0, 3);
+    //    affine3d_transmat.at<double>(1, 2) = affine3d_transmat.at<double>(1, 2) +
+    //            affine3d_transmat.at<double>(1, 3);
+    //    affine3d_transmat.at<double>(2, 2) = affine3d_transmat.at<double>(2, 2) +
+    //            affine3d_transmat.at<double>(2, 3);
+    //
+    //    //drop last column and 3rd row
+    //    Mat affine_3x3_transmat = Mat(affine3d_transmat, Rect(0, 0, 3, 3));
+    //    cout << affine_3x3_transmat << endl;
+    //    //use perspective transform
+    //    Mat affine3dResult;
+    //    warpPerspective(src_1, affine3dResult, affine_3x3_transmat,
+    //            Size(src_1.cols + src_2.cols, src_2.rows));
+    //    namedWindow("Affine3d", WINDOW_NORMAL);
+    //    imshow("Affine3d", affine3dResult);
+    //    cout << trans_mat << endl;
 
     //warped image result
     Mat warpedIm = warpPerspectiveResult.clone();
@@ -421,7 +422,7 @@ Mat compositeResult(Mat left, Mat right) {
  * @param 
  * @param 
  */
-void plotMatches(int, void*) {
+void plotPa2Matches(int, void*) {
     //concatenate two images together
     Size img1Sz = src_1.size();
     Size img2Sz = src_2.size();
@@ -515,7 +516,8 @@ void demoKeypoints(int, void*) {
     /// Extracting patches around the corners
     for (int j = 0; j < dst_norm.rows; j++) {
         for (int i = 0; i < dst_norm.cols; i++) {
-            if ((int) dst_norm.at<float>(j, i) > thresh) {
+            int score = (int) dst_norm.at<float>(j, i);
+            if (score > thresh) {
                 circle(demo, Point(i, j), 5, Scalar(0), 2, 8, 0);
             }
         }
